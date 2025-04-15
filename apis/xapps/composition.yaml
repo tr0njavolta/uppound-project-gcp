@@ -11,7 +11,7 @@ spec:
   mode: Pipeline
   pipeline:
   - functionRef:
-      name: upbound-uppound-gcpuppound-function
+      name: acmeco-uppound-gcpuppound-function
     step: uppound-function
   - functionRef:
       name: crossplane-contrib-function-auto-ready

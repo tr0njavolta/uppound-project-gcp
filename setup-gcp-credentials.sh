@@ -4,20 +4,26 @@ if [ -z "$PROJECT_ID" ]; then
   read -p "Enter your GCP Project ID: " PROJECT_ID
 fi
 
-SA_NAME=upbound-platform-admin
+if [ -z "$SA_NAME" ]; then
+  read -p "Enter Service Account name (default: upbound-platform-admin): " SA_NAME
+  SA_NAME=${SA_NAME:-upbound-platform-admin}
+fi
+
 SA="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
-echo "=== Adding IAM roles for $SA ==="
+echo "# Creating service account $SA_NAME in project $PROJECT_ID #"
+gcloud iam service-accounts create $SA_NAME --project $PROJECT_ID
 
+echo "# Adding IAM roles for $SA #"
 roles=(
-  "roles/iam.serviceAccountAdmin"           
-  "roles/iam.serviceAccountKeyAdmin"        
-  "roles/iam.serviceAccountUser"            
-  "roles/resourcemanager.projectIamAdmin"   
-  "roles/container.admin"                   
-  "roles/compute.networkAdmin"             
-  "roles/cloudsql.admin"                  
-  "roles/storage.admin"                  
+  "roles/resourcemanager.projectIamAdmin"
+  "roles/iam.serviceAccountAdmin"
+  "roles/iam.serviceAccountKeyAdmin"
+  "roles/iam.serviceAccountUser"
+  "roles/container.admin"
+  "roles/compute.networkAdmin"
+  "roles/cloudsql.admin"
+  "roles/storage.admin"
 )
 
 for role in "${roles[@]}"; do
@@ -27,19 +33,21 @@ for role in "${roles[@]}"; do
     --role="$role"
 done
 
-echo "=== Creating new service account key ==="
-gcloud iam service-accounts keys create new-gcp-creds.json \
+echo "# Creating new service account key #"
+gcloud iam service-accounts keys create gcp-creds.json \
   --project "$PROJECT_ID" \
   --iam-account "$SA"
 
-echo "=== Updating Kubernetes secret ==="
+echo "# Service account key saved to gcp-creds.json #"
+
+echo "# Updating Kubernetes secret #"
 kubectl delete secret gcp-creds --namespace default || true
 kubectl create secret generic gcp-creds \
   --namespace default \
-  --from-file=creds=./new-gcp-creds.json
+  --from-file=creds=./gcp-creds.json
 
-echo "=== Updating provider config ==="
-cat <<EOF | kubectl apply -f -
+echo "# Updating provider config #"
+cat <<EOF > gcp-provider-config.yaml
 apiVersion: gcp.upbound.io/v1beta1
 kind: ProviderConfig
 metadata:
@@ -53,4 +61,6 @@ spec:
       name: gcp-creds
       key: creds
 EOF
+kubectl apply -f gcp-provider-config.yaml
 
+echo "# Setup complete #"
